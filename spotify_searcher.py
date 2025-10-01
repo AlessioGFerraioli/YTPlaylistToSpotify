@@ -44,7 +44,8 @@ class SpotifySearcher:
         title = track["name"]
         artists = [artist["name"] for artist in track["artists"]] 
         duration = track["duration_ms"]
-        return title, artists, duration
+        id = track["id"]
+        return title, artists, duration, id
 
     def print_track_info(self, title, artists, duration):
             print("Title: ", title)
@@ -64,7 +65,7 @@ class SpotifySearcher:
 
         for i, track in enumerate(tracks):
             print(i+1)
-            title, artists, duration = self.parse_track_info(track)
+            title, artists, duration, id = self.parse_track_info(track)
             self.print_track_info(title, artists, duration)
             print()
 
@@ -80,7 +81,7 @@ class SpotifySearcher:
         duration_match = False
 
         for i, track in enumerate(tracks):
-            title, artists, duration = self.parse_track_info(track)
+            title, artists, duration, id = self.parse_track_info(track)
             if title.lower() == query_title.lower():
                 if title_match == False:  # se il titolo corrisponde ma ancora non era stato matchato, assegna questo
                     best_match_index = i
@@ -99,16 +100,17 @@ class SpotifySearcher:
                                 duration_match = True
                         break # una volta che tra tutti gli artisti ho trovato uno che corrisponda è inutile che continui nella lista di artisti della traccia
 
-        if print_info == True:
+        if True: # print_info == True:
             print("Best Match Found:")
             print("")
-            title, artist, duration = self.parse_track_info(tracks[best_match_index])
+            title, artist, duration, id = self.parse_track_info(tracks[best_match_index])
             self.print_track_info(title, artist, duration)
             print("")
             print("Matching:")
             print("Title: ", title_match)
             print("Artist: ", artist_match)
             print(f"Duration within a {duration_err} ms error: ", duration_match)
+            print(f"ID: ", id)
 
         return tracks[best_match_index], (title_match, artist_match, duration_match, duration_err)
 
