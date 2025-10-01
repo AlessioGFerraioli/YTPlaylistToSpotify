@@ -2,6 +2,8 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import json
 from spotify_searcher import SpotifySearcher
+from yt_playlist_scraper import YTPlaylistScraper
+import time
 
 class SpotifyPlaylistManager:
     def __init__(self, client_id, client_secret, redirect_url="http://127.0.0.1:8000/callback"):
@@ -45,7 +47,8 @@ class SpotifyPlaylistManager:
         
     def add_tracks_to_playlist(self, playlist_id, track_ids):
         '''
-        aggiunga una traccia a una playlist
+        aggiunga tracce a una playlist
+        spotify api ha un limite di 100 tracce per chiamata API, quindi le divido in batch da max
         returns true se ha successo
         
         '''
@@ -60,29 +63,81 @@ class SpotifyPlaylistManager:
             else:
                 track_uris.append(f"spotify:track:{track_id}")
             
-            print("Track uris list created: ", track_uris)
-            print("Provo ad aggiungere alla playlist ID ", playlist_id)
+            # print("Track uris list created.") # debug
+            # print("Provo ad aggiungere alla playlist..", playlist_id) debug
+
+            # divido le tracce in batch da 100
+            batch_size = 100 
+            batches = [track_uris[i:i+batch_size] for i in range(0, len(track_uris), batch_size)] 
         try:
-            self.sp.playlist_add_items(playlist_id, track_uris)
-            print(f"{len(track_uris)} tracce aggiunte alla playlist.")
+            total_n_tracks_aggiunte = 0
+            for track_uris in batches:
+                self.sp.playlist_add_items(playlist_id, track_uris)
+                total_n_tracks_aggiunte += len(track_uris)
+                time.sleep(2) #una piccola pausa per non fare impressionare l'api di spotify
+            print(f"{total_n_tracks_aggiunte} tracce aggiunte alla playlist.")    
             return True
         except Exception as e:
-            print("Errore nell'aggiungere traccia: {e}")
+            print("Errore nell'aggiungere le tracce: {e}")
             return False
         
     def get_track_id(self, query_title, query_artist=None, query_duration=None, duration_err=1000, limit=20):
         track, flags = self.searcher.get_best_match(query_title, query_artist, query_duration, duration_err=duration_err, limit=limit)
         return track["id"]
 
-    def search_and_add(self, playlist_id):
-        track_id = self.get_track_id("old enough", "long stay", 236000)
-        print("Track id trovato:", track_id)
-        self.add_tracks_to_playlist(playlist_id, track_id)
+    def search_and_add(self, playlist_id, queries, print_query=True):
+        track_ids = []
+        i = 0
+        for query in queries:
+            if print_query:
+                print("___________________________________________")
+                print()
+                print(i+1)
+                print("CURRENT QUERY: ")
+                print(f"Title: {query['title']}")
+                print(f"Artist: {query['artist']}")
+                print(f"Duration: {query['duration']}")
+                print()
+                i += 1
+            track_ids.append(self.get_track_id(query["title"], query["artist"], query["duration"]))
 
-    def create_playlist_from_search(self):
-        playlist = self.create_playlist("test_aggiunta_debug6", "test playlist dove aggiungo una canzone cercata da python")
-        self.search_and_add(playlist["id"])
+        self.add_tracks_to_playlist(playlist_id, track_ids)
 
+    def create_playlist_from_search(self, queries, name, description=''):
+        playlist = self.create_playlist(name, description)
+        self.search_and_add(playlist["id"], queries)
+        return playlist
+    
+    def get_queries_from_YTplaylist(self, YT_playlist_url):
+        scraper = YTPlaylistScraper(YT_playlist_url)
+        playlist_info, videos_info = scraper.get_playlist_info()
+        # crea queries da videos_info
+        queries = []
+        for video in videos_info:
+            query = {
+                "title" : video["title"],
+                "duration" : video["duration"]
+            }
+            query["artist"] = video.get("artist", None) # se non ci sono artisti, lascia "None" come artist, che verra gestito dallo spotify searcher
+            queries.append(query)
+        return queries, playlist_info
+    
+    def create_playlist_from_YTplaylist(self, YT_playlist_url, name=None, description=None):
+        '''
+        takes a yt playlist url, fetches the data with YTPlaylistScraper, and creates a n ew playlsit of the same
+        name of the yt playlist with create_playlist_from_search
+        '''
+        # get information aabout the videos in the yt playlsit and about the playlist
+        queries, playlist_info = self.get_queries_from_YTplaylist(YT_playlist_url)
+        if name is None:
+            name = playlist_info["title"]
+        if description is None:
+            description = f"Automatic porting to Spotify of a playlist called '{name}' created by {playlist_info['author']}"
+
+        # create playlsit and add the songs
+        playlist = self.create_playlist_from_search(queries, name, description)    
+        return playlist
+        
                 
 
 
@@ -91,8 +146,10 @@ with open('params.json') as f:
 
 client_id = params["client_id"]
 client_secret = params["client_secret"]
+#yt_playlist_url = params["yt_playlist_url"]
 
+
+yt_playlist_url = input("Inserire YT playlist url: ")
+print("\nCreo playlist spotify da playlist YT..")
 manager = SpotifyPlaylistManager(client_id, client_secret)
-
-print("\ncreo playlist con una canzone")
-my_playlist = manager.create_playlist_from_search()
+manager.create_playlist_from_YTplaylist(yt_playlist_url)

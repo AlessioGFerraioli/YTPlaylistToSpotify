@@ -88,19 +88,30 @@ class SpotifySearcher:
                     title_match = True
                 
                 # assunto che il titolo corrisponda, controlliamo gli artisti
-                for artist in artists: #controllo artista per artista
-                    if query_artist.lower() in artist.lower() or artist.lower() in query_artist.lower(): # se artista corrisponde
-                        if artist_match == False: # se non era stato trovato ancora, assegna questo - non mi curo del fatto che piu artisti possono esserci, me ne basta una corrispondeza
-                            best_match_index = i
-                            artist_match = True
-                        # assunto che l'artista corrisponda, controllo la durata
-                        if abs(duration - query_duration) <= duration_err: #se la durata corrisponde
-                            if duration_match == False:
+                if artists is not None:
+                    for artist in artists: #controllo artista per artista
+                        if query_artist.lower() in artist.lower() or artist.lower() in query_artist.lower(): # se artista corrisponde
+                            if artist_match == False: # se non era stato trovato ancora, assegna questo - non mi curo del fatto che piu artisti possono esserci, me ne basta una corrispondeza
                                 best_match_index = i
-                                duration_match = True
-                        break # una volta che tra tutti gli artisti ho trovato uno che corrisponda è inutile che continui nella lista di artisti della traccia
+                                artist_match = True
+                            # assunto che l'artista corrisponda, controllo la durata
+                            if abs(duration - query_duration) <= duration_err: #se la durata corrisponde
+                                if duration_match == False:
+                                    best_match_index = i
+                                    duration_match = True
+                            break # una volta che tra tutti gli artisti ho trovato uno che corrisponda è inutile che continui nella lista di artisti della traccia
+            
+                if abs(duration - query_duration) <= duration_err: #se la durata corrisponde (e il titolo pure)
+                    if duration_match == False:
+                        best_match_index = i
+                        duration_match = True
 
+            if title_match and artist_match and duration_match: # se hai trovata una traccia che corrisponde a tutte e tre le cose è inutile continuare
+                break
+                        
         if True: # print_info == True:
+            print("------------")
+            print()
             print("Best Match Found:")
             print("")
             title, artist, duration, id = self.parse_track_info(tracks[best_match_index])
@@ -111,18 +122,21 @@ class SpotifySearcher:
             print("Artist: ", artist_match)
             print(f"Duration within a {duration_err} ms error: ", duration_match)
             print(f"ID: ", id)
+            print()
+            print("_____________________________________")
 
         return tracks[best_match_index], (title_match, artist_match, duration_match, duration_err)
 
+def main():
+    '''esempio di utilizzo'''
+    with open('params.json') as f:
+        params = json.load(f)
 
-with open('params.json') as f:
-    params = json.load(f)
+    client_id = params["client_id"]
+    client_secret = params["client_secret"]
 
-client_id = params["client_id"]
-client_secret = params["client_secret"]
+    searcher = SpotifySearcher(client_id, client_secret)
 
-searcher = SpotifySearcher(client_id, client_secret)
-
-searcher.get_best_match(query_title="old enough", query_artist="long stay", query_duration=236000, print_info=True)
+    searcher.get_best_match(query_title="old enough", query_artist="long stay", query_duration=236000, print_info=True)
 
 
